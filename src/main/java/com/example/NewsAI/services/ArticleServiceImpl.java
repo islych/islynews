@@ -65,4 +65,11 @@ public class ArticleServiceImpl implements ArticleService {
     public List<Article> getArticlesByAuthor(Long authorId) {
         return articleRepository.findByAuthorId(authorId);
     }
+
+    @Override
+    public List<Article> getArticlesByAuthorEmail(String authorEmail) {
+        User author = userRepository.findByEmail(authorEmail)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        return articleRepository.findByAuthorId(author.getId());
+    }
 }

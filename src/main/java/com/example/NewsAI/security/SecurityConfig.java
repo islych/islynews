@@ -53,10 +53,18 @@ public class SecurityConfig {
                 // External News API (NewsAPI)
                 .requestMatchers(HttpMethod.GET, "/api/external-news/**").permitAll()
 
+                // Imported Articles : user connecté
+                .requestMatchers(HttpMethod.POST, "/imported-articles").hasAnyRole("USER", "JOURNALIST", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/imported-articles/me").hasAnyRole("USER", "JOURNALIST", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/imported-articles/check").hasAnyRole("USER", "JOURNALIST", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/imported-articles/toggle").hasAnyRole("USER", "JOURNALIST", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/imported-articles/**").hasAnyRole("USER", "JOURNALIST", "ADMIN")
+
                 // Journaliste : publier, modifier et supprimer SES articles
-                .requestMatchers(HttpMethod.POST, "/articles").hasAnyRole("JOURNALIST", "ADMIN")
-                .requestMatchers(HttpMethod.PUT, "/articles/**").hasAnyRole("JOURNALIST", "ADMIN")
-                .requestMatchers(HttpMethod.DELETE, "/articles/**").hasAnyRole("JOURNALIST", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/articles").hasRole("JOURNALIST")
+                .requestMatchers(HttpMethod.GET, "/articles/my-articles").hasRole("JOURNALIST")
+                .requestMatchers(HttpMethod.PUT, "/articles/**").hasRole("JOURNALIST")
+                .requestMatchers(HttpMethod.DELETE, "/articles/**").hasRole("JOURNALIST")
 
                 // User connecté : liker, commenter, sauvegarder
                 .requestMatchers(HttpMethod.POST, "/likes").hasAnyRole("USER", "JOURNALIST", "ADMIN")

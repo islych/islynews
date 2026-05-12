@@ -10,7 +10,7 @@ import java.util.Date;
 @Service
 public class JwtService {
 
-    private static final String SECRET = "News_ai_2026_SpringBoot_JWT_Secret_Key_SuperSecure_123456";
+    private static final String SECRET = "VO0Vna4VUq7uuftvBojH8mrI9FZ04K9v6s75Wj3SsQ4";
 
     private Key getKey() {
         return Keys.hmacShaKeyFor(SECRET.getBytes());

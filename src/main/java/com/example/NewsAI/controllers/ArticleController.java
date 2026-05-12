@@ -46,6 +46,12 @@ public class ArticleController {
         return articleService.getAllArticles();
     }
 
+    // Récupérer les articles de l'utilisateur connecté
+    @GetMapping("/my-articles")
+    public List<Article> getMyArticles(Authentication auth) {
+        return articleService.getArticlesByAuthorEmail(auth.getName());
+    }
+
     // UC2 - Voir le détail d'un article (public)
     @GetMapping("/{id}")
     public Article getArticle(@PathVariable Long id) {

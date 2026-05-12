@@ -17,4 +17,6 @@ public interface ArticleService {
     List<Article> getAllArticles();
 
     List<Article> getArticlesByAuthor(Long authorId);
+
+    List<Article> getArticlesByAuthorEmail(String authorEmail);
 }
