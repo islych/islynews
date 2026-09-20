@@ -58,6 +58,7 @@ public class SecurityConfig {
 
                 // External News API (NewsAPI)
                 .requestMatchers(HttpMethod.GET, "/api/external-news/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/ai/analyze").permitAll()
 
                 // Imported Articles : user connecté
                 .requestMatchers(HttpMethod.POST, "/imported-articles").hasAnyRole("USER", "JOURNALIST", "ADMIN")

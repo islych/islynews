@@ -7,17 +7,21 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 
 @Service
-public class AiSummaryService {
+public class AiSummaryService implements AiAnalysisProvider {
 
     @Value("${huggingface.api.key}")
     private String apiKey;
 
     private static final String HF_API_URL = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-cnn";
 
-    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(5))
+            .build();
 
+    @Override
     public String summarize(String content) {
         if (content == null || content.isBlank()) {
             return "No content to summarize.";
@@ -36,6 +40,7 @@ public class AiSummaryService {
                     .header("Authorization", "Bearer " + apiKey)
                     .header("Content-Type", "application/json")
                     .header("Accept", "application/json")
+                    .timeout(Duration.ofSeconds(20))
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
 
@@ -65,5 +70,10 @@ public class AiSummaryService {
         } catch (Exception e) {
             return "AI summary error: " + e.getMessage();
         }
+    }
+
+    @Override
+    public String modelName() {
+        return "facebook/bart-large-cnn";
     }
 }
