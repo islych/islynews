@@ -20,7 +20,7 @@ public class NewsApiController {
             @RequestParam(defaultValue = "us") String country,
             @RequestParam(required = false) String category,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int pageSize) {
+            @RequestParam(defaultValue = "50") int pageSize) {
         return newsApiService.getTopHeadlines(country, category, page, pageSize);
     }
 
@@ -28,7 +28,7 @@ public class NewsApiController {
     public NewsApiResponse searchNews(
             @RequestParam String q,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int pageSize) {
+            @RequestParam(defaultValue = "50") int pageSize) {
         return newsApiService.searchNews(q, page, pageSize);
     }
 }

@@ -1,15 +1,30 @@
 package com.example.NewsAI.services;
 
 import com.example.NewsAI.dtos.NewsApiResponse;
+import com.example.NewsAI.dtos.NewsArticleDto;
+import com.example.NewsAI.dtos.GNewsResponse;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 @Service
 @RequiredArgsConstructor
 public class NewsApiServiceImpl implements NewsApiService {
+
+    private static final Logger log = LoggerFactory.getLogger(NewsApiServiceImpl.class);
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final RestTemplate restTemplate;
 
@@ -19,28 +34,162 @@ public class NewsApiServiceImpl implements NewsApiService {
     @Value("${newsapi.api.base-url}")
     private String apiBaseUrl;
 
+    @Value("${gnews.api.key}")
+    private String gNewsApiKey;
+
+    @Value("${gnews.api.base-url}")
+    private String gNewsBaseUrl;
+
     @Override
     public NewsApiResponse getTopHeadlines(String country, String category, int page, int pageSize) {
-        String url = UriComponentsBuilder.fromUriString(apiBaseUrl + "/top-headlines")
-                .queryParam("apiKey", apiKey)
-                .queryParam("country", country)
-                .queryParam("category", category)
-                .queryParam("page", page)
-                .queryParam("pageSize", pageSize)
-                .toUriString();
+        int safePageSize = normalizePageSize(pageSize);
+        List<NewsArticleDto> articles = new ArrayList<>();
+        int totalResults = 0;
 
-        return restTemplate.getForObject(url, NewsApiResponse.class);
+        try {
+            NewsApiResponse response = fetchNewsApiHeadlines(country, category, page, safePageSize);
+            if (response != null) {
+                totalResults += response.getTotalResults();
+                addAll(articles, response.getArticles());
+            }
+        } catch (RuntimeException exception) {
+            log.warn("NewsAPI headlines request failed; continuing with GNews ({})",
+                    exception.getClass().getSimpleName());
+        }
+
+        try {
+            GNewsResponse response = fetchGNewsHeadlines(country, category, page, safePageSize);
+            if (response != null) {
+                totalResults += response.getTotalArticles();
+                addAll(articles, mapGNewsArticles(response.getArticles()));
+            }
+        } catch (RuntimeException exception) {
+            log.warn("GNews headlines request failed; continuing with NewsAPI ({})",
+                    exception.getClass().getSimpleName());
+        }
+
+        return aggregatedResponse(articles, totalResults, safePageSize);
     }
 
     @Override
     public NewsApiResponse searchNews(String query, int page, int pageSize) {
-        String url = UriComponentsBuilder.fromUriString(apiBaseUrl + "/everything")
+        int safePageSize = normalizePageSize(pageSize);
+        List<NewsArticleDto> articles = new ArrayList<>();
+        int totalResults = 0;
+
+        try {
+            String newsApiUrl = UriComponentsBuilder.fromUriString(apiBaseUrl + "/everything")
                 .queryParam("apiKey", apiKey)
                 .queryParam("q", query)
+                .queryParam("sortBy", "publishedAt")
                 .queryParam("page", page)
-                .queryParam("pageSize", pageSize)
+                .queryParam("pageSize", safePageSize)
                 .toUriString();
+            NewsApiResponse response = restTemplate.getForObject(newsApiUrl, NewsApiResponse.class);
+            if (response != null) {
+                totalResults += response.getTotalResults();
+                addAll(articles, response.getArticles());
+            }
+        } catch (RuntimeException exception) {
+            log.warn("NewsAPI search request failed; continuing with GNews ({})",
+                    exception.getClass().getSimpleName());
+        }
 
-        return restTemplate.getForObject(url, NewsApiResponse.class);
+        try {
+            String gNewsUrl = UriComponentsBuilder.fromUriString(gNewsBaseUrl + "/search")
+                    .queryParam("apikey", gNewsApiKey)
+                    .queryParam("q", query)
+                    .queryParam("lang", "en")
+                    .queryParam("max", safePageSize)
+                    .queryParam("page", page)
+                    .queryParam("sortby", "publishedAt")
+                    .toUriString();
+            GNewsResponse response = restTemplate.getForObject(gNewsUrl, GNewsResponse.class);
+            if (response != null) {
+                totalResults += response.getTotalArticles();
+                addAll(articles, mapGNewsArticles(response.getArticles()));
+            }
+        } catch (RuntimeException exception) {
+            log.warn("GNews search request failed; continuing with NewsAPI ({})",
+                    exception.getClass().getSimpleName());
+        }
+
+        return aggregatedResponse(articles, totalResults, safePageSize);
+    }
+
+    private NewsApiResponse fetchNewsApiHeadlines(String country, String category, int page, int pageSize) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(apiBaseUrl + "/top-headlines")
+                .queryParam("apiKey", apiKey)
+                .queryParam("country", country)
+                .queryParam("page", page)
+                .queryParam("pageSize", pageSize);
+        if (category != null && !category.isBlank() && !"general".equalsIgnoreCase(category)) {
+            builder.queryParam("category", category);
+        }
+        return restTemplate.getForObject(builder.toUriString(), NewsApiResponse.class);
+    }
+
+    private GNewsResponse fetchGNewsHeadlines(String country, String category, int page, int pageSize) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(gNewsBaseUrl + "/top-headlines")
+                .queryParam("apikey", gNewsApiKey)
+                .queryParam("lang", "en")
+                .queryParam("country", country)
+                .queryParam("max", pageSize)
+                .queryParam("page", page);
+        if (category != null && !category.isBlank()) {
+            builder.queryParam("category", category);
+        }
+        return restTemplate.getForObject(builder.toUriString(), GNewsResponse.class);
+    }
+
+    private List<NewsArticleDto> mapGNewsArticles(List<GNewsResponse.GNewsArticle> articles) {
+        if (articles == null) {
+            return List.of();
+        }
+        return articles.stream().map(article -> new NewsArticleDto(
+                article.getTitle(),
+                article.getDescription(),
+                article.getUrl(),
+                article.getImage(),
+                article.getPublishedAt(),
+                article.getContent(),
+                new NewsArticleDto.SourceDto(null,
+                        article.getSource() == null ? "GNews" : article.getSource().getName())
+        )).toList();
+    }
+
+    private NewsApiResponse aggregatedResponse(List<NewsArticleDto> articles, int reportedTotal, int pageSize) {
+        Map<String, NewsArticleDto> uniqueArticles = new LinkedHashMap<>();
+        articles.stream()
+                .filter(article -> article != null && article.getUrl() != null && !article.getUrl().isBlank())
+                .filter(article -> article.getTitle() != null && !"[Removed]".equals(article.getTitle()))
+                .sorted(Comparator.comparing(this::publishedAt).reversed())
+                .forEach(article -> uniqueArticles.putIfAbsent(normalizeUrl(article.getUrl()), article));
+
+        List<NewsArticleDto> result = uniqueArticles.values().stream().limit(pageSize).toList();
+        int totalResults = Math.max(result.size(), reportedTotal);
+        return new NewsApiResponse("ok", totalResults, result);
+    }
+
+    private Instant publishedAt(NewsArticleDto article) {
+        try {
+            return article.getPublishedAt() == null ? Instant.EPOCH : Instant.parse(article.getPublishedAt());
+        } catch (DateTimeParseException exception) {
+            return Instant.EPOCH;
+        }
+    }
+
+    private String normalizeUrl(String url) {
+        return url.strip().replaceFirst("[?#].*$", "").replaceFirst("/$", "").toLowerCase();
+    }
+
+    private int normalizePageSize(int pageSize) {
+        return Math.max(1, Math.min(pageSize, MAX_PAGE_SIZE));
+    }
+
+    private void addAll(List<NewsArticleDto> destination, List<NewsArticleDto> source) {
+        if (source != null) {
+            destination.addAll(source);
+        }
     }
 }
