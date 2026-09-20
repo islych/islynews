@@ -6,6 +6,8 @@ import com.example.NewsAI.repositories.ImportedArticleRepository;
 import com.example.NewsAI.repositories.UserRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -47,8 +49,13 @@ public class ImportedArticleServiceImpl implements ImportedArticleService {
     }
 
     @Override
-    public void removeImported(Long id) {
-        importedArticleRepository.deleteById(id);
+    public void removeImported(Long id, String userEmail) {
+        ImportedArticle imported = importedArticleRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Imported article not found"));
+        if (!imported.getUser().getEmail().equals(userEmail)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only remove your own imported articles");
+        }
+        importedArticleRepository.delete(imported);
     }
 
     @Override

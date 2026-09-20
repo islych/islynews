@@ -7,6 +7,8 @@ import com.example.NewsAI.repositories.LikeRepository;
 import com.example.NewsAI.repositories.UserRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -36,8 +38,13 @@ public class LikeServiceImpl implements LikeService {
     }
 
     @Override
-    public void unlike(Long id) {
-        likeRepository.deleteById(id);
+    public void unlike(Long id, String userEmail) {
+        Like like = likeRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Like not found"));
+        if (!like.getUser().getEmail().equals(userEmail)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only remove your own likes");
+        }
+        likeRepository.delete(like);
     }
 
     @Override

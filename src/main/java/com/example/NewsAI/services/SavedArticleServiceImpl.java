@@ -7,6 +7,8 @@ import com.example.NewsAI.repositories.SavedArticleRepository;
 import com.example.NewsAI.repositories.UserRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
 import java.util.List;
@@ -49,8 +51,13 @@ public class SavedArticleServiceImpl implements SavedArticleService {
     }
 
     @Override
-    public void removeSaved(Long id) {
-        savedArticleRepository.deleteById(id);
+    public void removeSaved(Long id, String userEmail) {
+        SavedArticle saved = savedArticleRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Saved article not found"));
+        if (!saved.getUser().getEmail().equals(userEmail)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only remove your own saved articles");
+        }
+        savedArticleRepository.delete(saved);
     }
 
     @Override

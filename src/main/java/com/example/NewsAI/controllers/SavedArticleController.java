@@ -33,8 +33,8 @@ public class SavedArticleController {
     }
 
     @DeleteMapping("/{id}")
-    public void removeSaved(@PathVariable Long id) {
-        savedArticleService.removeSaved(id);
+    public void removeSaved(@PathVariable Long id, Authentication auth) {
+        savedArticleService.removeSaved(id, auth.getName());
     }
 
     @GetMapping("/check/{articleId}")

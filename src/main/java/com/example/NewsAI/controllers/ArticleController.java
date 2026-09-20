@@ -9,6 +9,9 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 
 @RestController
 @RequestMapping("/articles")
@@ -44,6 +47,13 @@ public class ArticleController {
     @GetMapping
     public List<Article> getAllArticles() {
         return articleService.getAllArticles();
+    }
+
+    @GetMapping("/search")
+    public Page<Article> searchArticles(
+            @RequestParam(defaultValue = "") String q,
+            @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
+        return articleService.searchArticles(q, pageable);
     }
 
     // Récupérer les articles de l'utilisateur connecté

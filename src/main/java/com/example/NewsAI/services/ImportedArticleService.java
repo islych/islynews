@@ -13,7 +13,7 @@ public interface ImportedArticleService {
 
     List<ImportedArticle> getSavedByUserEmail(String userEmail);
 
-    void removeImported(Long id);
+    void removeImported(Long id, String userEmail);
 
     boolean checkIfSaved(String userEmail, String url);
 

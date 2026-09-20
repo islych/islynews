@@ -31,3 +31,11 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Local environment files and secrets
+.env
+.env.*
+!.env.example
+
+# Temporary legacy frontend location (remove after any process using it is closed)
+/src/main/java/com/example/NewsAI/frontend/

@@ -11,6 +11,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 @Service
 @AllArgsConstructor
@@ -71,5 +73,12 @@ public class ArticleServiceImpl implements ArticleService {
         User author = userRepository.findByEmail(authorEmail)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
         return articleRepository.findByAuthorId(author.getId());
+    }
+
+    @Override
+    public Page<Article> searchArticles(String query, Pageable pageable) {
+        String safeQuery = query == null ? "" : query.trim();
+        return articleRepository.findByTitleContainingIgnoreCaseOrContentContainingIgnoreCase(
+                safeQuery, safeQuery, pageable);
     }
 }

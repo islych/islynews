@@ -3,6 +3,8 @@ package com.example.NewsAI.services;
 import com.example.NewsAI.entities.Article;
 
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface ArticleService {
 
@@ -19,4 +21,6 @@ public interface ArticleService {
     List<Article> getArticlesByAuthor(Long authorId);
 
     List<Article> getArticlesByAuthorEmail(String authorEmail);
+
+    Page<Article> searchArticles(String query, Pageable pageable);
 }

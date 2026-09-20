@@ -8,7 +8,7 @@ public interface LikeService {
 
     Like likeArticle(Like like, String userEmail);
 
-    void unlike(Long id);
+    void unlike(Long id, String userEmail);
 
     boolean checkIfLiked(String userEmail, Long articleId);
 

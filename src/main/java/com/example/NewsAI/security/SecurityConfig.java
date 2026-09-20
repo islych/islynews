@@ -1,6 +1,7 @@
 package com.example.NewsAI.security;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.*;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -18,10 +19,13 @@ public class SecurityConfig {
 
     private final JwtFilter jwtFilter;
 
+    @Value("${app.cors.allowed-origin}")
+    private String allowedOrigin;
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:4200"));
+        config.setAllowedOrigins(List.of(allowedOrigin));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
@@ -40,6 +44,8 @@ public class SecurityConfig {
         http.authorizeHttpRequests(auth -> auth
                 // Auth publique
                 .requestMatchers("/auth/register", "/auth/login").permitAll()
+                .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/auth/me").authenticated()
 
                 // Consultation publique (Guest)
@@ -57,17 +63,20 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/imported-articles").hasAnyRole("USER", "JOURNALIST", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/imported-articles/me").hasAnyRole("USER", "JOURNALIST", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/imported-articles/check").hasAnyRole("USER", "JOURNALIST", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/imported-articles/user/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/imported-articles/toggle").hasAnyRole("USER", "JOURNALIST", "ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/imported-articles/**").hasAnyRole("USER", "JOURNALIST", "ADMIN")
 
                 // Journaliste : publier, modifier et supprimer SES articles
                 .requestMatchers(HttpMethod.POST, "/articles").hasRole("JOURNALIST")
                 .requestMatchers(HttpMethod.GET, "/articles/my-articles").hasRole("JOURNALIST")
-                .requestMatchers(HttpMethod.PUT, "/articles/**").hasRole("JOURNALIST")
-                .requestMatchers(HttpMethod.DELETE, "/articles/**").hasRole("JOURNALIST")
+                .requestMatchers(HttpMethod.PUT, "/articles/**").hasAnyRole("JOURNALIST", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/articles/**").hasAnyRole("JOURNALIST", "ADMIN")
 
                 // User connecté : liker, commenter, sauvegarder
                 .requestMatchers(HttpMethod.POST, "/likes").hasAnyRole("USER", "JOURNALIST", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/likes/check/**").hasAnyRole("USER", "JOURNALIST", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/likes/count/**").permitAll()
                 .requestMatchers(HttpMethod.DELETE, "/likes/**").hasAnyRole("USER", "JOURNALIST", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/comments").hasAnyRole("USER", "JOURNALIST", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/saved-articles").hasAnyRole("USER", "JOURNALIST", "ADMIN")
@@ -81,9 +90,10 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.DELETE, "/users/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/users").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/users/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/users/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/admin/**").hasRole("ADMIN")
 
-                .anyRequest().authenticated());
+                .anyRequest().denyAll());
 
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 

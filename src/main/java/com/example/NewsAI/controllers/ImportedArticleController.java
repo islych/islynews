@@ -40,8 +40,8 @@ public class ImportedArticleController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
-    public void removeImported(@PathVariable Long id) {
-        importedArticleService.removeImported(id);
+    public void removeImported(@PathVariable Long id, Authentication auth) {
+        importedArticleService.removeImported(id, auth.getName());
     }
 
     @GetMapping("/check")

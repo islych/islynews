@@ -2,6 +2,7 @@ package com.example.NewsAI.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.security.Key;
@@ -10,10 +11,17 @@ import java.util.Date;
 @Service
 public class JwtService {
 
-    private static final String SECRET = "VO0Vna4VUq7uuftvBojH8mrI9FZ04K9v6s75Wj3SsQ4";
+    private final String secret;
+
+    public JwtService(@Value("${app.jwt.secret}") String secret) {
+        if (secret == null || secret.length() < 32) {
+            throw new IllegalArgumentException("JWT_SECRET must contain at least 32 characters");
+        }
+        this.secret = secret;
+    }
 
     private Key getKey() {
-        return Keys.hmacShaKeyFor(SECRET.getBytes());
+        return Keys.hmacShaKeyFor(secret.getBytes());
     }
 
     public String generateToken(String email, String role) {

@@ -22,8 +22,8 @@ public class LikeController {
     }
 
     @DeleteMapping("/{id}")
-    public void unlike(@PathVariable Long id) {
-        likeService.unlike(id);
+    public void unlike(@PathVariable Long id, Authentication auth) {
+        likeService.unlike(id, auth.getName());
     }
 
     @GetMapping("/check/{articleId}")

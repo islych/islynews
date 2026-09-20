@@ -1,0 +1,8 @@
+.git
+.idea
+.vscode
+target
+frontend
+src/main/java/com/example/NewsAI/frontend
+*.log
+.env

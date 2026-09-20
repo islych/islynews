@@ -13,7 +13,7 @@ public interface SavedArticleService {
 
     List<SavedArticle> getSavedByUserEmail(String userEmail);
 
-    void removeSaved(Long id);
+    void removeSaved(Long id, String userEmail);
 
     boolean checkIfSaved(String userEmail, Long articleId);
 
