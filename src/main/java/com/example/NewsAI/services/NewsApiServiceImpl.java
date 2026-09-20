@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -56,6 +57,9 @@ public class NewsApiServiceImpl implements NewsApiService {
     private String gNewsBaseUrl;
 
     @Override
+    @Cacheable(cacheNames = "externalNews",
+            key = "'headlines:' + (#country ?: 'us') + ':' + (#category ?: 'general') + ':' + #page + ':' + #pageSize",
+            sync = true)
     public NewsApiResponse getTopHeadlines(String country, String category, int page, int pageSize) {
         int safePageSize = normalizePageSize(pageSize);
         List<String> countries = parseCountryCodes(country);
@@ -157,6 +161,9 @@ public class NewsApiServiceImpl implements NewsApiService {
     }
 
     @Override
+    @Cacheable(cacheNames = "externalNews",
+            key = "'search:' + #query.toLowerCase() + ':' + #page + ':' + #pageSize",
+            sync = true)
     public NewsApiResponse searchNews(String query, int page, int pageSize) {
         int safePageSize = normalizePageSize(pageSize);
         List<NewsArticleDto> articles = new ArrayList<>();

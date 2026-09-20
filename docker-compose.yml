@@ -14,6 +14,17 @@ services:
       timeout: 5s
       retries: 10
 
+  cache:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - newsai-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   backend:
     build: .
     environment:
@@ -24,6 +35,9 @@ services:
       NEWS_API_KEY: ${NEWS_API_KEY}
       GNEWS_API_KEY: ${GNEWS_API_KEY}
       HUGGINGFACE_API_KEY: ${HUGGINGFACE_API_KEY}
+      REDIS_HOST: cache
+      REDIS_PORT: 6379
+      NEWS_CACHE_TTL: ${NEWS_CACHE_TTL:-10m}
       CORS_ALLOWED_ORIGIN: http://localhost:4200
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
@@ -31,6 +45,8 @@ services:
       - "8080:8080"
     depends_on:
       database:
+        condition: service_healthy
+      cache:
         condition: service_healthy
 
   frontend:
@@ -42,3 +58,4 @@ services:
 
 volumes:
   newsai-mysql:
+  newsai-redis:

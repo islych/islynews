@@ -1,6 +1,6 @@
 # NewsAI
 
-NewsAI is a full-stack news platform built with Angular, Spring Boot, MySQL, JWT authentication, NewsAPI integration, and AI-assisted article summaries.
+NewsAI is a full-stack news platform built with Angular, Spring Boot, MySQL, Redis, JWT authentication, multi-provider news aggregation, and AI-assisted article summaries.
 
 ## Architecture
 
@@ -8,6 +8,8 @@ NewsAI is a full-stack news platform built with Angular, Spring Boot, MySQL, JWT
 - `frontend/` — Angular client (Git submodule)
 - `docs/` — architecture and decision records
 - `docker-compose.yml` — reproducible local environment
+
+External news responses are cached in Redis for 10 minutes by default. This protects provider quotas and makes repeated filters substantially faster. Set `NEWS_CACHE_TTL` to change the expiration.
 
 ## Local development
 
