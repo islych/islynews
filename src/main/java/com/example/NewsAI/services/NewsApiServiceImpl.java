@@ -63,8 +63,11 @@ public class NewsApiServiceImpl implements NewsApiService {
             sync = true)
     public NewsApiResponse getTopHeadlines(String country, String category, String language, int page, int pageSize) {
         int safePageSize = normalizePageSize(pageSize);
-        List<String> countries = parseCountryCodes(country);
         String safeLanguage = normalizeLanguage(language);
+        if (country == null || country.isBlank()) {
+            return getGlobalHeadlines(category, safeLanguage, page, safePageSize);
+        }
+        List<String> countries = parseCountryCodes(country);
         if (countries.size() > 1 || "ma".equals(countries.getFirst()) || !"en".equals(safeLanguage)) {
             return getNewsAboutGeography(countries, safeLanguage, page, safePageSize);
         }
@@ -103,6 +106,59 @@ public class NewsApiServiceImpl implements NewsApiService {
         }
 
         return aggregatedResponse(articles, totalResults, safePageSize);
+    }
+
+    private NewsApiResponse getGlobalHeadlines(String category, String language, int page, int pageSize) {
+        List<NewsArticleDto> articles = new ArrayList<>();
+        int totalResults = 0;
+
+        try {
+            String newsApiUrl = UriComponentsBuilder.fromUriString(apiBaseUrl + "/everything")
+                    .queryParam("apiKey", apiKey)
+                    .queryParam("q", globalQuery(language))
+                    .queryParam("language", language)
+                    .queryParam("sortBy", "publishedAt")
+                    .queryParam("page", page)
+                    .queryParam("pageSize", pageSize)
+                    .toUriString();
+            NewsApiResponse response = restTemplate.getForObject(newsApiUrl, NewsApiResponse.class);
+            if (response != null) {
+                totalResults += response.getTotalResults();
+                addAll(articles, response.getArticles());
+            }
+        } catch (RuntimeException exception) {
+            log.warn("NewsAPI global headlines request failed for language {}; continuing with GNews ({})",
+                    language, exception.getClass().getSimpleName());
+        }
+
+        try {
+            UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(gNewsBaseUrl + "/top-headlines")
+                    .queryParam("apikey", gNewsApiKey)
+                    .queryParam("lang", language)
+                    .queryParam("max", Math.min(pageSize, 10))
+                    .queryParam("page", page);
+            if (category != null && !category.isBlank()) {
+                builder.queryParam("category", category);
+            }
+            GNewsResponse response = restTemplate.getForObject(builder.toUriString(), GNewsResponse.class);
+            if (response != null) {
+                totalResults += response.getTotalArticles();
+                addAll(articles, mapGNewsArticles(response.getArticles()));
+            }
+        } catch (RuntimeException exception) {
+            log.warn("GNews global headlines request failed for language {}; continuing with NewsAPI ({})",
+                    language, exception.getClass().getSimpleName());
+        }
+
+        return aggregatedResponse(articles, totalResults, pageSize);
+    }
+
+    private String globalQuery(String language) {
+        return switch (language) {
+            case "ar" -> "أخبار";
+            case "fr" -> "monde";
+            default -> "world";
+        };
     }
 
     private NewsApiResponse getNewsAboutGeography(List<String> countries, String language, int page, int pageSize) {

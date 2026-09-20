@@ -17,7 +17,7 @@ public class NewsApiController {
 
     @GetMapping("/top-headlines")
     public NewsApiResponse getTopHeadlines(
-            @RequestParam(defaultValue = "us") String country,
+            @RequestParam(defaultValue = "") String country,
             @RequestParam(required = false) String category,
             @RequestParam(defaultValue = "en") String language,
             @RequestParam(defaultValue = "1") int page,
