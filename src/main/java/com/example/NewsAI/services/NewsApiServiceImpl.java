@@ -32,6 +32,14 @@ public class NewsApiServiceImpl implements NewsApiService {
             "eg", "fr", "gb", "gr", "hk", "hu", "id", "ie", "il", "in", "it", "jp", "kr", "lt",
             "lv", "ma", "mx", "my", "ng", "nl", "no", "nz", "ph", "pl", "pt", "ro", "rs", "ru",
             "sa", "se", "sg", "si", "sk", "th", "tr", "tw", "ua", "us", "ve", "za");
+    private static final Map<String, String> COUNTRY_NAMES = Map.ofEntries(
+            Map.entry("ma", "Morocco"), Map.entry("za", "South Africa"), Map.entry("eg", "Egypt"),
+            Map.entry("ng", "Nigeria"), Map.entry("in", "India"), Map.entry("jp", "Japan"),
+            Map.entry("cn", "China"), Map.entry("sg", "Singapore"), Map.entry("fr", "France"),
+            Map.entry("gb", "United Kingdom"), Map.entry("de", "Germany"), Map.entry("it", "Italy"),
+            Map.entry("nl", "Netherlands"), Map.entry("us", "United States"), Map.entry("ca", "Canada"),
+            Map.entry("mx", "Mexico"), Map.entry("br", "Brazil"), Map.entry("ar", "Argentina"),
+            Map.entry("co", "Colombia"), Map.entry("au", "Australia"), Map.entry("nz", "New Zealand"));
 
     private final RestTemplate restTemplate;
 
@@ -51,6 +59,9 @@ public class NewsApiServiceImpl implements NewsApiService {
     public NewsApiResponse getTopHeadlines(String country, String category, int page, int pageSize) {
         int safePageSize = normalizePageSize(pageSize);
         List<String> countries = parseCountryCodes(country);
+        if (countries.size() > 1 || "ma".equals(countries.getFirst())) {
+            return getNewsAboutGeography(countries, page, safePageSize);
+        }
         int resultsPerCountry = Math.max(10, (int) Math.ceil((double) safePageSize / countries.size()));
         List<NewsArticleDto> articles = new ArrayList<>();
         int totalResults = 0;
@@ -86,6 +97,63 @@ public class NewsApiServiceImpl implements NewsApiService {
         }
 
         return aggregatedResponse(articles, totalResults, safePageSize);
+    }
+
+    private NewsApiResponse getNewsAboutGeography(List<String> countries, int page, int pageSize) {
+        String query = geographicQuery(countries);
+        List<NewsArticleDto> articles = new ArrayList<>();
+        int totalResults = 0;
+
+        try {
+            String newsApiUrl = UriComponentsBuilder.fromUriString(apiBaseUrl + "/everything")
+                    .queryParam("apiKey", apiKey)
+                    .queryParam("q", query)
+                    .queryParam("sortBy", "publishedAt")
+                    .queryParam("page", page)
+                    .queryParam("pageSize", pageSize)
+                    .toUriString();
+            NewsApiResponse response = restTemplate.getForObject(newsApiUrl, NewsApiResponse.class);
+            if (response != null) {
+                totalResults += response.getTotalResults();
+                addAll(articles, response.getArticles());
+            }
+        } catch (RuntimeException exception) {
+            log.warn("NewsAPI geographic search failed ({})", exception.getClass().getSimpleName());
+        }
+
+        try {
+            String gNewsUrl = UriComponentsBuilder.fromUriString(gNewsBaseUrl + "/search")
+                    .queryParam("apikey", gNewsApiKey)
+                    .queryParam("q", query)
+                    .queryParam("lang", "en")
+                    .queryParam("max", Math.min(pageSize, 10))
+                    .queryParam("page", page)
+                    .queryParam("sortby", "publishedAt")
+                    .toUriString();
+            GNewsResponse response = restTemplate.getForObject(gNewsUrl, GNewsResponse.class);
+            if (response != null) {
+                totalResults += response.getTotalArticles();
+                addAll(articles, mapGNewsArticles(response.getArticles()));
+            }
+        } catch (RuntimeException exception) {
+            log.warn("GNews geographic search failed ({})", exception.getClass().getSimpleName());
+        }
+
+        return aggregatedResponse(articles, totalResults, pageSize);
+    }
+
+    private String geographicQuery(List<String> countries) {
+        Set<String> selected = Set.copyOf(countries);
+        if (selected.equals(Set.of("ma", "za", "eg", "ng"))) return "Africa";
+        if (selected.equals(Set.of("in", "jp", "cn", "sg"))) return "Asia";
+        if (selected.equals(Set.of("fr", "gb", "de", "it", "nl"))) return "Europe";
+        if (selected.equals(Set.of("us", "ca", "mx"))) return "North America";
+        if (selected.equals(Set.of("br", "ar", "co"))) return "South America";
+        if (selected.equals(Set.of("au", "nz"))) return "Oceania";
+        return countries.stream()
+                .map(code -> COUNTRY_NAMES.getOrDefault(code, code))
+                .reduce((left, right) -> left + " OR " + right)
+                .orElse("world");
     }
 
     @Override
