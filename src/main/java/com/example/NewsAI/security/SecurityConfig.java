@@ -48,6 +48,12 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/auth/me").authenticated()
 
+                // Workflow éditorial protégé (avant les routes GET publiques génériques)
+                .requestMatchers(HttpMethod.GET, "/articles/admin/all", "/articles/review-queue").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/articles/my-articles").hasRole("JOURNALIST")
+                .requestMatchers(HttpMethod.POST, "/articles/*/approve", "/articles/*/reject").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/articles/*/submit").hasRole("JOURNALIST")
+
                 // Consultation publique (Guest)
                 .requestMatchers(HttpMethod.GET, "/articles").permitAll()
                 .requestMatchers(HttpMethod.GET, "/articles/**").permitAll()

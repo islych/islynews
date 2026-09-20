@@ -12,11 +12,23 @@ public interface ArticleService {
 
     Article updateArticle(Long id, Article article, String requesterEmail, boolean isAdmin);
 
+    Article submitForReview(Long id, String requesterEmail);
+
+    Article approveArticle(Long id);
+
+    Article rejectArticle(Long id, String reason);
+
     void deleteArticle(Long id, String requesterEmail, boolean isAdmin);
 
     Article getArticleById(Long id);
 
     List<Article> getAllArticles();
+
+    List<Article> getAllArticlesForAdmin();
+
+    List<Article> getReviewQueue();
+
+    Article getArticleForViewer(Long id, String requesterEmail, boolean isAdmin);
 
     List<Article> getArticlesByAuthor(Long authorId);
 

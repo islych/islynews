@@ -28,6 +28,11 @@ public class Article {
 
     private LocalDateTime createdAt;
 
+    private LocalDateTime reviewedAt;
+
+    @Column(length = 1000)
+    private String rejectionReason;
+
     @Enumerated(EnumType.STRING)
     private ArticleStatus status;
 

@@ -9,6 +9,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -35,6 +36,21 @@ public class ArticleController {
         return articleService.updateArticle(id, article, auth.getName(), isAdmin);
     }
 
+    @PostMapping("/{id}/submit")
+    public Article submitForReview(@PathVariable Long id, Authentication auth) {
+        return articleService.submitForReview(id, auth.getName());
+    }
+
+    @PostMapping("/{id}/approve")
+    public Article approve(@PathVariable Long id) {
+        return articleService.approveArticle(id);
+    }
+
+    @PostMapping("/{id}/reject")
+    public Article reject(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        return articleService.rejectArticle(id, body.get("reason"));
+    }
+
     // UC11 - Journaliste supprime SES articles / UC13 - Admin supprime n'importe
     // quel article
     @DeleteMapping("/{id}")
@@ -47,6 +63,16 @@ public class ArticleController {
     @GetMapping
     public List<Article> getAllArticles() {
         return articleService.getAllArticles();
+    }
+
+    @GetMapping("/admin/all")
+    public List<Article> getAllArticlesForAdmin() {
+        return articleService.getAllArticlesForAdmin();
+    }
+
+    @GetMapping("/review-queue")
+    public List<Article> getReviewQueue() {
+        return articleService.getReviewQueue();
     }
 
     @GetMapping("/search")
@@ -64,14 +90,15 @@ public class ArticleController {
 
     // UC2 - Voir le détail d'un article (public)
     @GetMapping("/{id}")
-    public Article getArticle(@PathVariable Long id) {
-        return articleService.getArticleById(id);
+    public Article getArticle(@PathVariable Long id, Authentication auth) {
+        boolean isAdmin = auth != null && auth.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        return articleService.getArticleForViewer(id, auth == null ? null : auth.getName(), isAdmin);
     }
 
     // UC3 - Résumer un article via IA (public)
     @GetMapping("/{id}/summary")
     public String summarizeArticle(@PathVariable Long id) {
-        Article article = articleService.getArticleById(id);
+        Article article = articleService.getArticleForViewer(id, null, false);
         return aiSummaryService.summarize(article.getContent());
     }
 
