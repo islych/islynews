@@ -1,5 +1,7 @@
 package com.example.NewsAI.services;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -15,7 +17,9 @@ public class AiSummaryService implements AiAnalysisProvider {
     @Value("${huggingface.api.key}")
     private String apiKey;
 
-    private static final String HF_API_URL = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-cnn";
+    private static final String MODEL_NAME = "csebuetnlp/mT5_multilingual_XLSum";
+    private static final String HF_API_URL = "https://router.huggingface.co/hf-inference/models/" + MODEL_NAME;
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
@@ -54,15 +58,9 @@ public class AiSummaryService implements AiAnalysisProvider {
                 return "AI summary unavailable (HTTP " + response.statusCode() + ").";
             }
 
-            // Parse: [{"summary_text":"..."}]
-            String body = response.body();
-            int idx = body.indexOf("\"summary_text\"");
-            if (idx != -1) {
-                int start = body.indexOf("\"", idx + 14) + 1;
-                int end = body.lastIndexOf("\"");
-                if (start > 0 && end > start) {
-                    return body.substring(start, end);
-                }
+            JsonNode body = JSON.readTree(response.body());
+            if (body.isArray() && !body.isEmpty() && body.get(0).hasNonNull("summary_text")) {
+                return body.get(0).get("summary_text").asText().strip();
             }
 
             return "Summary unavailable.";
@@ -74,6 +72,6 @@ public class AiSummaryService implements AiAnalysisProvider {
 
     @Override
     public String modelName() {
-        return "facebook/bart-large-cnn";
+        return MODEL_NAME;
     }
 }

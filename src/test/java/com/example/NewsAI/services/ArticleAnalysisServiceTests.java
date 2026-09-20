@@ -45,4 +45,28 @@ class ArticleAnalysisServiceTests {
         assertThat(result.sourceUrl()).isEqualTo("https://example.com/openai-platform");
         verify(repository).save(any());
     }
+
+    @Test
+    void rejectsAnUnrelatedEnglishSummaryForAnArabicArticle() {
+        ArticleAnalysisRepository repository = mock(ArticleAnalysisRepository.class);
+        AiAnalysisProvider provider = mock(AiAnalysisProvider.class);
+        when(repository.findByUrlHash(anyString())).thenReturn(Optional.empty());
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(provider.summarize(anyString())).thenReturn(
+                "The letter is written in the form of a series of letters published by a magazine.");
+
+        ArticleAnalysisService service = new ArticleAnalysisService(repository, provider);
+        ArticleAnalysisDto result = service.analyze(new ArticleAnalysisRequest(
+                "غرفة دبي للاقتصاد الرقمي تعزز فرص تمويل الشركات الناشئة",
+                "تواصل دعم نمو منظومة الاقتصاد الرقمي في الإمارات.",
+                "تهدف المبادرة إلى تعزيز الابتكار والاستثمار في قطاع التكنولوجيا.",
+                "https://example.com/arabic-news",
+                "Example News",
+                "ar"));
+
+        assertThat(result.summary()).contains("غرفة دبي");
+        assertThat(result.summary()).doesNotContain("The letter");
+        assertThat(result.model()).isEqualTo("extractive-fallback-v1");
+        assertThat(result.confidence()).isEqualTo(0.62);
+    }
 }

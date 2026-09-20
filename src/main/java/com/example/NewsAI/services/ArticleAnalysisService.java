@@ -31,24 +31,28 @@ public class ArticleAnalysisService {
     private final ArticleAnalysisRepository repository;
     private final AiAnalysisProvider aiProvider;
 
-    @Cacheable(cacheNames = "articleAnalysis", key = "#request.url()", sync = true)
+    @Cacheable(cacheNames = "articleAnalysis", key = "'v2:' + #request.url()", sync = true)
     public ArticleAnalysisDto analyze(ArticleAnalysisRequest request) {
         String urlHash = sha256(request.url());
-        return repository.findByUrlHash(urlHash).map(this::toDto).orElseGet(() -> create(request, urlHash));
+        String input = analysisText(request);
+        String language = normalizeLanguage(request.language(), input);
+        return repository.findByUrlHash(urlHash)
+                .filter(saved -> isSummaryAcceptable(saved.getSummary(), input, language))
+                .map(this::toDto)
+                .orElseGet(() -> create(request, urlHash, input, language));
     }
 
-    private ArticleAnalysisDto create(ArticleAnalysisRequest request, String urlHash) {
+    private ArticleAnalysisDto create(ArticleAnalysisRequest request, String urlHash, String input, String language) {
         long startedAt = System.nanoTime();
-        String input = analysisText(request);
         String generatedSummary = aiProvider.summarize(input);
         boolean aiSucceeded = generatedSummary != null
                 && !generatedSummary.startsWith("AI ")
                 && !generatedSummary.equals("Summary unavailable.")
-                && !generatedSummary.equals("No content to summarize.");
+                && !generatedSummary.equals("No content to summarize.")
+                && isSummaryAcceptable(generatedSummary, input, language);
         String summary = aiSucceeded ? generatedSummary : extractiveSummary(input);
-        String language = normalizeLanguage(request.language(), input);
 
-        ArticleAnalysis analysis = new ArticleAnalysis();
+        ArticleAnalysis analysis = repository.findByUrlHash(urlHash).orElseGet(ArticleAnalysis::new);
         analysis.setUrlHash(urlHash);
         analysis.setSourceUrl(request.url());
         analysis.setSummary(summary);
@@ -62,6 +66,33 @@ public class ArticleAnalysisService {
         analysis.setProcessingTimeMs((System.nanoTime() - startedAt) / 1_000_000);
         analysis.setAnalyzedAt(LocalDateTime.now());
         return toDto(repository.save(analysis));
+    }
+
+    private boolean isSummaryAcceptable(String summary, String input, String language) {
+        if (summary == null || summary.isBlank() || summary.length() < 30) return false;
+        if ("ar".equals(language) && arabicRatio(summary) < 0.25) return false;
+
+        Set<String> inputWords = significantWords(input);
+        Set<String> summaryWords = significantWords(summary);
+        if (inputWords.isEmpty() || summaryWords.isEmpty()) return false;
+        long shared = summaryWords.stream().filter(inputWords::contains).count();
+        return shared >= Math.min(3, summaryWords.size()) || (double) shared / summaryWords.size() >= 0.18;
+    }
+
+    private double arabicRatio(String text) {
+        long letters = text.codePoints().filter(Character::isLetter).count();
+        if (letters == 0) return 0;
+        long arabic = text.codePoints().filter(code -> code >= 0x0600 && code <= 0x06FF).count();
+        return (double) arabic / letters;
+    }
+
+    private Set<String> significantWords(String text) {
+        Set<String> words = new LinkedHashSet<>();
+        Arrays.stream(text.toLowerCase(Locale.ROOT).split("[^\\p{L}\\p{N}]+"))
+                .filter(word -> word.length() >= 4)
+                .limit(250)
+                .forEach(words::add);
+        return words;
     }
 
     private String analysisText(ArticleAnalysisRequest request) {
