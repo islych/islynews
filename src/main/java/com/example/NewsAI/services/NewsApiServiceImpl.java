@@ -18,6 +18,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +26,12 @@ public class NewsApiServiceImpl implements NewsApiService {
 
     private static final Logger log = LoggerFactory.getLogger(NewsApiServiceImpl.class);
     private static final int MAX_PAGE_SIZE = 100;
+    private static final int MAX_COUNTRIES_PER_REQUEST = 6;
+    private static final Set<String> SUPPORTED_COUNTRIES = Set.of(
+            "ae", "ar", "at", "au", "be", "bg", "br", "ca", "ch", "cn", "co", "cu", "cz", "de",
+            "eg", "fr", "gb", "gr", "hk", "hu", "id", "ie", "il", "in", "it", "jp", "kr", "lt",
+            "lv", "ma", "mx", "my", "ng", "nl", "no", "nz", "ph", "pl", "pt", "ro", "rs", "ru",
+            "sa", "se", "sg", "si", "sk", "th", "tr", "tw", "ua", "us", "ve", "za");
 
     private final RestTemplate restTemplate;
 
@@ -43,29 +50,39 @@ public class NewsApiServiceImpl implements NewsApiService {
     @Override
     public NewsApiResponse getTopHeadlines(String country, String category, int page, int pageSize) {
         int safePageSize = normalizePageSize(pageSize);
+        List<String> countries = parseCountryCodes(country);
+        int resultsPerCountry = Math.max(10, (int) Math.ceil((double) safePageSize / countries.size()));
         List<NewsArticleDto> articles = new ArrayList<>();
         int totalResults = 0;
 
-        try {
-            NewsApiResponse response = fetchNewsApiHeadlines(country, category, page, safePageSize);
-            if (response != null) {
-                totalResults += response.getTotalResults();
-                addAll(articles, response.getArticles());
+        for (String countryCode : countries) {
+            try {
+                NewsApiResponse response = fetchNewsApiHeadlines(
+                        countryCode, category, page, resultsPerCountry);
+                if (response != null) {
+                    totalResults += response.getTotalResults();
+                    addAll(articles, response.getArticles());
+                }
+            } catch (RuntimeException exception) {
+                log.warn("NewsAPI headlines request failed for {}; continuing with other feeds ({})",
+                        countryCode, exception.getClass().getSimpleName());
             }
-        } catch (RuntimeException exception) {
-            log.warn("NewsAPI headlines request failed; continuing with GNews ({})",
-                    exception.getClass().getSimpleName());
-        }
 
-        try {
-            GNewsResponse response = fetchGNewsHeadlines(country, category, page, safePageSize);
-            if (response != null) {
-                totalResults += response.getTotalArticles();
-                addAll(articles, mapGNewsArticles(response.getArticles()));
+            // GNews free accounts are rate-limited. One fresh GNews feed is combined
+            // with all NewsAPI country feeds to avoid bursts when filtering a continent.
+            if (countryCode.equals(countries.getFirst())) {
+                try {
+                    GNewsResponse response = fetchGNewsHeadlines(
+                            countryCode, category, page, safePageSize);
+                    if (response != null) {
+                        totalResults += response.getTotalArticles();
+                        addAll(articles, mapGNewsArticles(response.getArticles()));
+                    }
+                } catch (RuntimeException exception) {
+                    log.warn("GNews headlines request failed for {}; continuing with other feeds ({})",
+                            countryCode, exception.getClass().getSimpleName());
+                }
             }
-        } catch (RuntimeException exception) {
-            log.warn("GNews headlines request failed; continuing with NewsAPI ({})",
-                    exception.getClass().getSimpleName());
         }
 
         return aggregatedResponse(articles, totalResults, safePageSize);
@@ -185,6 +202,20 @@ public class NewsApiServiceImpl implements NewsApiService {
 
     private int normalizePageSize(int pageSize) {
         return Math.max(1, Math.min(pageSize, MAX_PAGE_SIZE));
+    }
+
+    private List<String> parseCountryCodes(String country) {
+        if (country == null || country.isBlank()) {
+            return List.of("us");
+        }
+        List<String> countries = java.util.Arrays.stream(country.split(","))
+                .map(String::strip)
+                .map(String::toLowerCase)
+                .filter(SUPPORTED_COUNTRIES::contains)
+                .distinct()
+                .limit(MAX_COUNTRIES_PER_REQUEST)
+                .toList();
+        return countries.isEmpty() ? List.of("us") : countries;
     }
 
     private void addAll(List<NewsArticleDto> destination, List<NewsArticleDto> source) {
