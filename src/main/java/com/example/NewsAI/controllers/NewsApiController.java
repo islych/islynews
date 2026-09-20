@@ -19,16 +19,18 @@ public class NewsApiController {
     public NewsApiResponse getTopHeadlines(
             @RequestParam(defaultValue = "us") String country,
             @RequestParam(required = false) String category,
+            @RequestParam(defaultValue = "en") String language,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "50") int pageSize) {
-        return newsApiService.getTopHeadlines(country, category, page, pageSize);
+        return newsApiService.getTopHeadlines(country, category, language, page, pageSize);
     }
 
     @GetMapping("/search")
     public NewsApiResponse searchNews(
             @RequestParam String q,
+            @RequestParam(defaultValue = "en") String language,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "50") int pageSize) {
-        return newsApiService.searchNews(q, page, pageSize);
+        return newsApiService.searchNews(q, language, page, pageSize);
     }
 }

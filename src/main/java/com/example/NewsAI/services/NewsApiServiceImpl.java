@@ -28,6 +28,7 @@ public class NewsApiServiceImpl implements NewsApiService {
     private static final Logger log = LoggerFactory.getLogger(NewsApiServiceImpl.class);
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_COUNTRIES_PER_REQUEST = 6;
+    private static final Set<String> SUPPORTED_LANGUAGES = Set.of("ar", "en", "fr");
     private static final Set<String> SUPPORTED_COUNTRIES = Set.of(
             "ae", "ar", "at", "au", "be", "bg", "br", "ca", "ch", "cn", "co", "cu", "cz", "de",
             "eg", "fr", "gb", "gr", "hk", "hu", "id", "ie", "il", "in", "it", "jp", "kr", "lt",
@@ -58,13 +59,14 @@ public class NewsApiServiceImpl implements NewsApiService {
 
     @Override
     @Cacheable(cacheNames = "externalNews",
-            key = "'headlines:' + (#country ?: 'us') + ':' + (#category ?: 'general') + ':' + #page + ':' + #pageSize",
+            key = "'headlines:' + (#country ?: 'us') + ':' + (#category ?: 'general') + ':' + (#language ?: 'en') + ':' + #page + ':' + #pageSize",
             sync = true)
-    public NewsApiResponse getTopHeadlines(String country, String category, int page, int pageSize) {
+    public NewsApiResponse getTopHeadlines(String country, String category, String language, int page, int pageSize) {
         int safePageSize = normalizePageSize(pageSize);
         List<String> countries = parseCountryCodes(country);
-        if (countries.size() > 1 || "ma".equals(countries.getFirst())) {
-            return getNewsAboutGeography(countries, page, safePageSize);
+        String safeLanguage = normalizeLanguage(language);
+        if (countries.size() > 1 || "ma".equals(countries.getFirst()) || !"en".equals(safeLanguage)) {
+            return getNewsAboutGeography(countries, safeLanguage, page, safePageSize);
         }
         int resultsPerCountry = Math.max(10, (int) Math.ceil((double) safePageSize / countries.size()));
         List<NewsArticleDto> articles = new ArrayList<>();
@@ -88,7 +90,7 @@ public class NewsApiServiceImpl implements NewsApiService {
             if (countryCode.equals(countries.getFirst())) {
                 try {
                     GNewsResponse response = fetchGNewsHeadlines(
-                            countryCode, category, page, safePageSize);
+                            countryCode, category, safeLanguage, page, safePageSize);
                     if (response != null) {
                         totalResults += response.getTotalArticles();
                         addAll(articles, mapGNewsArticles(response.getArticles()));
@@ -103,7 +105,7 @@ public class NewsApiServiceImpl implements NewsApiService {
         return aggregatedResponse(articles, totalResults, safePageSize);
     }
 
-    private NewsApiResponse getNewsAboutGeography(List<String> countries, int page, int pageSize) {
+    private NewsApiResponse getNewsAboutGeography(List<String> countries, String language, int page, int pageSize) {
         String query = geographicQuery(countries);
         List<NewsArticleDto> articles = new ArrayList<>();
         int totalResults = 0;
@@ -112,6 +114,7 @@ public class NewsApiServiceImpl implements NewsApiService {
             String newsApiUrl = UriComponentsBuilder.fromUriString(apiBaseUrl + "/everything")
                     .queryParam("apiKey", apiKey)
                     .queryParam("q", query)
+                    .queryParam("language", language)
                     .queryParam("sortBy", "publishedAt")
                     .queryParam("page", page)
                     .queryParam("pageSize", pageSize)
@@ -126,15 +129,17 @@ public class NewsApiServiceImpl implements NewsApiService {
         }
 
         try {
-            String gNewsUrl = UriComponentsBuilder.fromUriString(gNewsBaseUrl + "/search")
+            UriComponentsBuilder gNewsUrl = UriComponentsBuilder.fromUriString(gNewsBaseUrl + "/search")
                     .queryParam("apikey", gNewsApiKey)
                     .queryParam("q", query)
-                    .queryParam("lang", "en")
+                    .queryParam("lang", language)
                     .queryParam("max", Math.min(pageSize, 10))
                     .queryParam("page", page)
-                    .queryParam("sortby", "publishedAt")
-                    .toUriString();
-            GNewsResponse response = restTemplate.getForObject(gNewsUrl, GNewsResponse.class);
+                    .queryParam("sortby", "publishedAt");
+            if (countries.size() == 1) {
+                gNewsUrl.queryParam("country", countries.getFirst());
+            }
+            GNewsResponse response = restTemplate.getForObject(gNewsUrl.toUriString(), GNewsResponse.class);
             if (response != null) {
                 totalResults += response.getTotalArticles();
                 addAll(articles, mapGNewsArticles(response.getArticles()));
@@ -162,10 +167,11 @@ public class NewsApiServiceImpl implements NewsApiService {
 
     @Override
     @Cacheable(cacheNames = "externalNews",
-            key = "'search:' + #query.toLowerCase() + ':' + #page + ':' + #pageSize",
+            key = "'search:' + #query.toLowerCase() + ':' + (#language ?: 'en') + ':' + #page + ':' + #pageSize",
             sync = true)
-    public NewsApiResponse searchNews(String query, int page, int pageSize) {
+    public NewsApiResponse searchNews(String query, String language, int page, int pageSize) {
         int safePageSize = normalizePageSize(pageSize);
+        String safeLanguage = normalizeLanguage(language);
         List<NewsArticleDto> articles = new ArrayList<>();
         int totalResults = 0;
 
@@ -173,6 +179,7 @@ public class NewsApiServiceImpl implements NewsApiService {
             String newsApiUrl = UriComponentsBuilder.fromUriString(apiBaseUrl + "/everything")
                 .queryParam("apiKey", apiKey)
                 .queryParam("q", query)
+                .queryParam("language", safeLanguage)
                 .queryParam("sortBy", "publishedAt")
                 .queryParam("page", page)
                 .queryParam("pageSize", safePageSize)
@@ -191,7 +198,7 @@ public class NewsApiServiceImpl implements NewsApiService {
             String gNewsUrl = UriComponentsBuilder.fromUriString(gNewsBaseUrl + "/search")
                     .queryParam("apikey", gNewsApiKey)
                     .queryParam("q", query)
-                    .queryParam("lang", "en")
+                    .queryParam("lang", safeLanguage)
                     .queryParam("max", safePageSize)
                     .queryParam("page", page)
                     .queryParam("sortby", "publishedAt")
@@ -221,10 +228,10 @@ public class NewsApiServiceImpl implements NewsApiService {
         return restTemplate.getForObject(builder.toUriString(), NewsApiResponse.class);
     }
 
-    private GNewsResponse fetchGNewsHeadlines(String country, String category, int page, int pageSize) {
+    private GNewsResponse fetchGNewsHeadlines(String country, String category, String language, int page, int pageSize) {
         UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(gNewsBaseUrl + "/top-headlines")
                 .queryParam("apikey", gNewsApiKey)
-                .queryParam("lang", "en")
+                .queryParam("lang", language)
                 .queryParam("country", country)
                 .queryParam("max", pageSize)
                 .queryParam("page", page);
@@ -277,6 +284,14 @@ public class NewsApiServiceImpl implements NewsApiService {
 
     private int normalizePageSize(int pageSize) {
         return Math.max(1, Math.min(pageSize, MAX_PAGE_SIZE));
+    }
+
+    private String normalizeLanguage(String language) {
+        if (language == null) {
+            return "en";
+        }
+        String normalized = language.strip().toLowerCase();
+        return SUPPORTED_LANGUAGES.contains(normalized) ? normalized : "en";
     }
 
     private List<String> parseCountryCodes(String country) {
