@@ -2,6 +2,10 @@
 
 Isly News is a personal full-stack news platform that combines local journalism, international news aggregation, and AI-assisted reading tools in a responsive editorial interface.
 
+## Preview
+
+![Isly News desktop news feed](docs/home-desktop.png)
+
 ## Highlights
 
 - Multilingual local and international news with search and filters
