@@ -47,8 +47,28 @@ public class UserServiceImpl implements UserService {
         if (user.getPassword() != null && !user.getPassword().isEmpty()) {
             existingUser.setPassword(encoder.encode(user.getPassword()));
         }
+        if (user.getBio() != null) {
+            existingUser.setBio(normalizeBio(user.getBio()));
+        }
         
         return userRepository.save(existingUser);
+    }
+
+    @Override
+    public User updateJournalistBio(String email, String bio) {
+        User journalist = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        if (journalist.getRole() != Role.JOURNALIST) {
+            throw new RuntimeException("Only journalists can have an author bio");
+        }
+        journalist.setBio(normalizeBio(bio));
+        return userRepository.save(journalist);
+    }
+
+    private String normalizeBio(String bio) {
+        if (bio == null) return null;
+        String normalized = bio.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 
     @Override

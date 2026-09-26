@@ -30,6 +30,9 @@ public class User {
     @Enumerated(EnumType.STRING)
     private Role role;
 
+    @Column(length = 500)
+    private String bio;
+
     @JsonIgnore
     @OneToMany(mappedBy = "author")
     private List<Article> articles;

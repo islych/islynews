@@ -18,6 +18,8 @@ import static org.mockito.Mockito.when;
 class ArticleWorkflowServiceTests {
     private ArticleRepository articleRepository;
     private UserRepository userRepository;
+    private NotificationService notificationService;
+    private VerificationEmailService emailService;
     private ArticleServiceImpl service;
     private User journalist;
 
@@ -25,7 +27,9 @@ class ArticleWorkflowServiceTests {
     void setUp() {
         articleRepository = mock(ArticleRepository.class);
         userRepository = mock(UserRepository.class);
-        service = new ArticleServiceImpl(articleRepository, userRepository);
+        notificationService = mock(NotificationService.class);
+        emailService = mock(VerificationEmailService.class);
+        service = new ArticleServiceImpl(articleRepository, userRepository, notificationService, emailService);
         journalist = new User();
         journalist.setId(7L);
         journalist.setEmail("journalist@example.com");

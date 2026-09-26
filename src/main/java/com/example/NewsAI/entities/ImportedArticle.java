@@ -5,6 +5,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Getter
@@ -34,6 +36,13 @@ public class ImportedArticle {
     private LocalDateTime publishedAt;
 
     private LocalDateTime importedAt;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    private List<String> tags = new ArrayList<>();
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @Column(columnDefinition = "TEXT")
+    private List<String> keyPoints = new ArrayList<>();
 
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)

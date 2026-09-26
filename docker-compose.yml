@@ -41,6 +41,17 @@ services:
       CORS_ALLOWED_ORIGIN: http://localhost:4200
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      MAIL_ENABLED: ${MAIL_ENABLED:-false}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@islynews.local}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-true}
+      MAIL_STARTTLS: ${MAIL_STARTTLS:-true}
+      UPLOAD_DIRECTORY: /app/uploads
+    volumes:
+      - newsai-uploads:/app/uploads
     ports:
       - "8080:8080"
     depends_on:
@@ -59,3 +70,4 @@ services:
 volumes:
   newsai-mysql:
   newsai-redis:
+  newsai-uploads:

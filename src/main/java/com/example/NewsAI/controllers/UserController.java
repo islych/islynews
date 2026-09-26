@@ -1,9 +1,12 @@
 package com.example.NewsAI.controllers;
 
+import com.example.NewsAI.dtos.JournalistBioRequest;
 import com.example.NewsAI.entities.User;
 import com.example.NewsAI.enums.Role;
 import com.example.NewsAI.services.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -41,6 +44,11 @@ public class UserController {
     @PutMapping("/{id}")
     public User updateUser(@PathVariable Long id, @RequestBody User user) {
         return userService.updateUser(id, user);
+    }
+
+    @PutMapping("/me/bio")
+    public User updateMyBio(@Valid @RequestBody JournalistBioRequest request, Authentication authentication) {
+        return userService.updateJournalistBio(authentication.getName(), request.bio());
     }
 
     @DeleteMapping("/{id}")

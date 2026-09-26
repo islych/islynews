@@ -9,6 +9,7 @@ public record ArticleAnalysisDto(
         List<String> keyPoints,
         String category,
         List<String> entities,
+        List<String> tags,
         String sentiment,
         double confidence,
         String language,

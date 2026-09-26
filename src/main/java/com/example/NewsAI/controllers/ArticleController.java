@@ -3,6 +3,9 @@ package com.example.NewsAI.controllers;
 import com.example.NewsAI.entities.Article;
 import com.example.NewsAI.services.ArticleService;
 import com.example.NewsAI.services.AiSummaryService;
+import com.example.NewsAI.services.ArticleAnalysisService;
+import com.example.NewsAI.dtos.ArticleAnalysisDto;
+import com.example.NewsAI.dtos.ArticleAnalysisRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -21,6 +24,7 @@ public class ArticleController {
 
     private final ArticleService articleService;
     private final AiSummaryService aiSummaryService;
+    private final ArticleAnalysisService articleAnalysisService;
 
     // UC9 - Journaliste publie un article
     @PostMapping
@@ -100,6 +104,33 @@ public class ArticleController {
     public String summarizeArticle(@PathVariable Long id) {
         Article article = articleService.getArticleForViewer(id, null, false);
         return aiSummaryService.summarize(article.getContent());
+    }
+
+    @GetMapping("/{id}/analysis")
+    public ArticleAnalysisDto analyzeArticle(@PathVariable Long id, Authentication auth) {
+        Article article = articleService.getArticleForViewer(id, auth.getName(), isAdmin(auth));
+        return articleAnalysisService.analyze(new ArticleAnalysisRequest(article.getTitle(), "", article.getContent(),
+                "isly://article/" + article.getId(), "Isly News", "auto"));
+    }
+
+    @GetMapping("/{id}/related")
+    public List<Article> relatedArticles(@PathVariable Long id, Authentication auth) {
+        Article target = articleService.getArticleForViewer(id, auth.getName(), isAdmin(auth));
+        ArticleAnalysisDto insight = articleAnalysisService.analyze(new ArticleAnalysisRequest(target.getTitle(), "", target.getContent(),
+                "isly://article/" + target.getId(), "Isly News", "auto"));
+        return articleService.getAllArticles().stream()
+                .filter(candidate -> !candidate.getId().equals(id))
+                .sorted((left, right) -> Integer.compare(tagScore(right, insight.tags()), tagScore(left, insight.tags())))
+                .limit(3).toList();
+    }
+
+    private boolean isAdmin(Authentication auth) {
+        return auth.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"));
+    }
+
+    private int tagScore(Article article, List<String> tags) {
+        String text = (article.getTitle() + " " + article.getContent()).toLowerCase();
+        return (int) tags.stream().filter(tag -> text.contains(tag.toLowerCase())).count();
     }
 
     @GetMapping("/author/{authorId}")

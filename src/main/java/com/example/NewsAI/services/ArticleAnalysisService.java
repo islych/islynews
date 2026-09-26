@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -27,6 +28,10 @@ public class ArticleAnalysisService {
     private static final Pattern ENTITY_PATTERN = Pattern.compile("\\b[A-Z][\\p{L}0-9.-]+(?:\\s+[A-Z][\\p{L}0-9.-]+){0,2}\\b");
     private static final Set<String> POSITIVE = Set.of("gain", "growth", "success", "win", "improve", "record", "hope", "succès", "victoire", "progrès");
     private static final Set<String> NEGATIVE = Set.of("death", "dead", "war", "crisis", "attack", "loss", "fail", "mort", "guerre", "crise", "attaque");
+    private static final Set<String> STOP_WORDS = Set.of(
+            "this", "that", "with", "from", "have", "will", "about", "their", "they", "were", "been", "into", "after",
+            "pour", "dans", "avec", "cette", "mais", "plus", "sont", "être", "entre", "comme", "avait", "elle", "elles",
+            "التي", "هذا", "هذه", "على", "إلى", "من", "في", "عن", "مع", "كان", "بعد", "بين");
 
     private final ArticleAnalysisRepository repository;
     private final AiAnalysisProvider aiProvider;
@@ -37,7 +42,8 @@ public class ArticleAnalysisService {
         String input = analysisText(request);
         String language = normalizeLanguage(request.language(), input);
         return repository.findByUrlHash(urlHash)
-                .filter(saved -> isSummaryAcceptable(saved.getSummary(), input, language))
+                .filter(saved -> isSummaryAcceptable(saved.getSummary(), input, language)
+                        && saved.getTags() != null && saved.getTags().size() == 5)
                 .map(this::toDto)
                 .orElseGet(() -> create(request, urlHash, input, language));
     }
@@ -59,6 +65,7 @@ public class ArticleAnalysisService {
         analysis.setKeyPoints(keyPoints(summary, input));
         analysis.setCategory(category(input));
         analysis.setEntities(entities(request.title(), request.source()));
+        analysis.setTags(tags(request.title(), input, analysis.getCategory(), analysis.getEntities()));
         analysis.setSentiment(sentiment(input));
         analysis.setConfidence(aiSucceeded ? 0.86 : 0.62);
         analysis.setLanguage(language);
@@ -134,9 +141,11 @@ public class ArticleAnalysisService {
     }
 
     private String sentiment(String text) {
-        String value = text.toLowerCase(Locale.ROOT);
-        long positive = POSITIVE.stream().filter(value::contains).count();
-        long negative = NEGATIVE.stream().filter(value::contains).count();
+        List<String> words = Arrays.stream(text.toLowerCase(Locale.ROOT).split("[^\\p{L}]+"))
+                .filter(word -> !word.isBlank())
+                .toList();
+        long positive = words.stream().filter(POSITIVE::contains).count();
+        long negative = words.stream().filter(NEGATIVE::contains).count();
         return positive == negative ? "neutral" : positive > negative ? "positive" : "negative";
     }
 
@@ -146,6 +155,32 @@ public class ArticleAnalysisService {
         Matcher matcher = ENTITY_PATTERN.matcher(nullToEmpty(title));
         while (matcher.find() && result.size() < 8) result.add(matcher.group());
         return result.stream().toList();
+    }
+
+    private List<String> tags(String title, String input, String category, List<String> namedEntities) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        if (category != null && !"general".equals(category)) result.add(displayTag(category));
+        namedEntities.stream().filter(value -> value != null && value.length() > 2)
+                .limit(2).map(this::displayTag).forEach(result::add);
+        Map<String, Long> frequencies = Arrays.stream((nullToEmpty(title) + " " + input).toLowerCase(Locale.ROOT)
+                        .split("[^\\p{L}\\p{N}-]+"))
+                .filter(word -> word.length() >= 4 && !STOP_WORDS.contains(word) && !word.matches("\\d+"))
+                .collect(java.util.stream.Collectors.groupingBy(word -> word,
+                        java.util.LinkedHashMap::new, java.util.stream.Collectors.counting()));
+        frequencies.entrySet().stream()
+                .sorted((left, right) -> Long.compare(right.getValue(), left.getValue()))
+                .map(Map.Entry::getKey).map(this::displayTag)
+                .filter(tag -> result.stream().noneMatch(existing -> existing.equalsIgnoreCase(tag)))
+                .limit(5).forEach(result::add);
+        for (String fallback : List.of("Current affairs", "Isly News", "News analysis", "World", "Top story")) {
+            if (result.size() < 5) result.add(fallback);
+        }
+        return result.stream().limit(5).toList();
+    }
+
+    private String displayTag(String value) {
+        String clean = value.replace('-', ' ').strip();
+        return clean.isEmpty() ? clean : clean.substring(0, 1).toUpperCase(Locale.ROOT) + clean.substring(1);
     }
 
     private String normalizeLanguage(String requested, String text) {
@@ -175,7 +210,7 @@ public class ArticleAnalysisService {
 
     private ArticleAnalysisDto toDto(ArticleAnalysis analysis) {
         return new ArticleAnalysisDto(analysis.getSummary(), List.copyOf(analysis.getKeyPoints()), analysis.getCategory(),
-                List.copyOf(analysis.getEntities()), analysis.getSentiment(), analysis.getConfidence(), analysis.getLanguage(),
+                List.copyOf(analysis.getEntities()), List.copyOf(analysis.getTags()), analysis.getSentiment(), analysis.getConfidence(), analysis.getLanguage(),
                 analysis.getModel(), analysis.getProcessingTimeMs(), analysis.getAnalyzedAt(), analysis.getSourceUrl());
     }
 }

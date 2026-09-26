@@ -9,6 +9,7 @@ RUN mvn -B -DskipTests package
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 RUN useradd --system --uid 10001 newsai
+RUN mkdir -p /app/uploads && chown -R newsai /app/uploads
 COPY --from=build /workspace/target/*.jar app.jar
 USER newsai
 EXPOSE 8080

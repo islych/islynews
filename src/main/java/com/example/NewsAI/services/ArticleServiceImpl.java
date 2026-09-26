@@ -23,6 +23,8 @@ public class ArticleServiceImpl implements ArticleService {
 
     private final ArticleRepository articleRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
+    private final VerificationEmailService emailService;
 
     @Override
     public Article createArticle(Article article, String authorEmail) {
@@ -68,7 +70,9 @@ public class ArticleServiceImpl implements ArticleService {
         article.setStatus(ArticleStatus.PENDING_REVIEW);
         article.setReviewedAt(null);
         article.setRejectionReason(null);
-        return articleRepository.save(article);
+        Article saved = articleRepository.save(article);
+        notificationService.notifyAdminsAboutSubmission(saved);
+        return saved;
     }
 
     @Override
@@ -77,7 +81,19 @@ public class ArticleServiceImpl implements ArticleService {
         article.setStatus(ArticleStatus.PUBLISHED);
         article.setReviewedAt(LocalDateTime.now());
         article.setRejectionReason(null);
-        return articleRepository.save(article);
+        Article saved = articleRepository.save(article);
+        notificationService.notifyJournalist(saved, true, null);
+        sendDecisionEmail(saved, true, null);
+        return saved;
+    }
+
+    private void sendDecisionEmail(Article article, boolean approved, String reason) {
+        try {
+            emailService.sendArticleDecision(article.getAuthor().getEmail(), article.getAuthor().getUsername(),
+                    article.getTitle(), approved, reason);
+        } catch (RuntimeException ignored) {
+            // An email outage must never block the editorial decision.
+        }
     }
 
     @Override
@@ -89,7 +105,10 @@ public class ArticleServiceImpl implements ArticleService {
         article.setStatus(ArticleStatus.REJECTED);
         article.setReviewedAt(LocalDateTime.now());
         article.setRejectionReason(reason.strip());
-        return articleRepository.save(article);
+        Article saved = articleRepository.save(article);
+        notificationService.notifyJournalist(saved, false, reason.strip());
+        sendDecisionEmail(saved, false, reason.strip());
+        return saved;
     }
 
     private Article requirePendingReview(Long id) {

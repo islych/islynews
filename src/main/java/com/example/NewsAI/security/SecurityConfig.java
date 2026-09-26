@@ -25,7 +25,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(allowedOrigin));
+        config.setAllowedOrigins(List.of(allowedOrigin.split(",")));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
@@ -43,28 +43,30 @@ public class SecurityConfig {
 
         http.authorizeHttpRequests(auth -> auth
                 // Auth publique
-                .requestMatchers("/auth/register", "/auth/login").permitAll()
+                .requestMatchers("/auth/register/**", "/auth/login").permitAll()
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/auth/me").authenticated()
+                .requestMatchers("/notifications/**").authenticated()
+                .requestMatchers(HttpMethod.GET, "/uploads/images/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/uploads/images").hasAnyRole("JOURNALIST", "ADMIN")
 
                 // Workflow éditorial protégé (avant les routes GET publiques génériques)
                 .requestMatchers(HttpMethod.GET, "/articles/admin/all", "/articles/review-queue").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/articles/my-articles").hasRole("JOURNALIST")
                 .requestMatchers(HttpMethod.POST, "/articles/*/approve", "/articles/*/reject").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/articles/*/submit").hasRole("JOURNALIST")
+                .requestMatchers(HttpMethod.GET, "/articles/*/summary").hasAnyRole("USER", "JOURNALIST", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/articles/*/analysis", "/articles/*/related").hasAnyRole("USER", "JOURNALIST", "ADMIN")
 
                 // Consultation publique (Guest)
                 .requestMatchers(HttpMethod.GET, "/articles").permitAll()
                 .requestMatchers(HttpMethod.GET, "/articles/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/comments/**").permitAll()
 
-                // Résumé IA : accessible à tous (Guest inclus)
-                .requestMatchers(HttpMethod.GET, "/articles/*/summary").permitAll()
-
                 // External News API (NewsAPI)
                 .requestMatchers(HttpMethod.GET, "/api/external-news/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/ai/analyze").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/ai/analyze").hasAnyRole("USER", "JOURNALIST", "ADMIN")
 
                 // Imported Articles : user connecté
                 .requestMatchers(HttpMethod.POST, "/imported-articles").hasAnyRole("USER", "JOURNALIST", "ADMIN")
@@ -97,6 +99,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.DELETE, "/users/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/users").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/users/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/users/me/bio").hasRole("JOURNALIST")
                 .requestMatchers(HttpMethod.PUT, "/users/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/admin/**").hasRole("ADMIN")
 

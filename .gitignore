@@ -37,5 +37,11 @@ build/
 .env.*
 !.env.example
 
+# Runtime data and local development artifacts
+/.runlogs/
+/uploads/
+*.log
+/docs/dry-audit.md
+
 # Temporary legacy frontend location (remove after any process using it is closed)
 /src/main/java/com/example/NewsAI/frontend/

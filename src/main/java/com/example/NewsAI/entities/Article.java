@@ -34,6 +34,7 @@ public class Article {
     private String rejectionReason;
 
     @Enumerated(EnumType.STRING)
+    @Column(columnDefinition = "varchar(32)")
     private ArticleStatus status;
 
     @ManyToOne

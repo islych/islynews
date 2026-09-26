@@ -43,6 +43,9 @@ public class ArticleAnalysis {
     @ElementCollection(fetch = FetchType.EAGER)
     private List<String> entities = new ArrayList<>();
 
+    @ElementCollection(fetch = FetchType.EAGER)
+    private List<String> tags = new ArrayList<>();
+
     @Column(nullable = false, length = 20)
     private String sentiment;
 
